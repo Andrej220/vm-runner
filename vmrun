@@ -1,0 +1,136 @@
+#!/bin/bash
+
+PROJECT_NAME=${PROJECT_NAME:-"k3"}
+RAM=${RAM:-"4G"}
+CPUS=${CPUS:-"2"}
+HOSTPORT=${HOSTPORT:-"8022"}
+VMPORT=${VMPORT:-"22"}
+VM_DIR=${VM_DIR:-"./vm/"}
+BRIDGE_NAME=${BRIDGE_NAME:-"br0"}
+
+VM_NAME="${PROJECT_NAME}_vm"
+PID_FILE="/tmp/${VM_NAME}.pid"
+SOCKET="/tmp/${VM_NAME}_monitor.sock"
+ADD_DISKS=""
+
+
+generate_additional_disks() {
+    local snapshot_file="${VM_DIR}${PROJECT_NAME}_snapshot.qcow2"
+    local base_file="${VM_DIR}${PROJECT_NAME}.qcow2"
+    local files=()
+    shopt -s nullglob
+    for file in "${VM_DIR}"*.qcow2; do
+        if [[ "$file" != "$snapshot_file" && "$file" != "$base_file" ]]; then
+            files+=("$file")
+        fi
+    done
+    shopt -u nullglob
+
+    if [ ${#files[@]} -gt 0 ]; then
+        for file in "${files[@]}"; do
+            ADD_DISKS+=" -drive file=${file},if=virtio,cache=none"
+        done
+    fi
+}
+generate_additional_disks
+
+QEMU_CMD="qemu-system-x86_64 \
+  -monitor unix:${SOCKET},server,nowait \
+  -display none \
+  -m ${RAM} \
+  -enable-kvm \
+  -cpu host \
+  -smp cpus=${CPUS} \
+  -hda ${VM_DIR}${PROJECT_NAME}_snapshot.qcow2 \
+  $ADD_DISKS
+  -device e1000,netdev=net0 \
+  -netdev user,id=net0,hostfwd=tcp::${HOSTPORT}-:${VMPORT}\
+  -cdrom ./cloud-init/cloud-init.iso"
+
+start_vm() {
+    echo "$QEMU_CMD"
+    
+    check_bridge  
+    if [ -f "$PID_FILE" ]; then
+        echo "VM is already running with PID $(cat "$PID_FILE")."
+    else
+        echo "Starting VM..."
+        $QEMU_CMD > /dev/null 2>&1 &
+        QEMU_PID=$!
+        echo "Waiting VM to start..."
+        sleep 2
+        #wait $QEMU_PID
+        if [ ! -S "$SOCKET" ]; then
+            echo ""
+            echo "Could not start VM"
+            echo "$QEMU_CMD"
+            exit 1
+        fi
+        echo $! > "$PID_FILE"
+        echo "VM started with PID $(cat "$PID_FILE")."
+    fi
+}
+
+stop_vm() {
+    if [ -f "$PID_FILE" ]; then
+        echo "Stopping VM..."
+        echo "system_powerdown" | socat - UNIX-CONNECT:${SOCKET}
+        rm -f "$PID_FILE" "$SOCKET"
+        echo "VM stopped."
+    else
+        echo "VM is not running."
+    fi
+}
+
+check_bridge() {
+    if ip link show "$BRIDGE_NAME" &> /dev/null; then
+        echo "Bridge $BRIDGE_NAME exists."
+    else
+        echo "Creating bridge $BRIDGE_NAME..."
+        ip link add name "$BRIDGE_NAME" type bridge
+        if [ $? -ne 0 ]; then 
+            echo "The bridge $BRIDGE_NAME cannot be created."
+            exit 1
+        fi
+        ip link set dev "$BRIDGE_NAME" up
+        echo "Bridge $BRIDGE_NAME created."
+    fi
+}
+
+get_status() {
+	if [ -f "$PID_FILE" ]; then
+		echo -n "$VM_NAME status: "
+		echo "info status" | socat - UNIX-CONNECT:${SOCKET} | awk -F: '/VM status/ {gsub(/ /, "", $2); print $2}'
+		echo "PID: $(cat "$PID_FILE")"
+	else
+		echo "$VM_NAME is not running."
+	fi
+}
+
+get_net_info() {
+	if [ -f "$PID_FILE" ]; then
+		echo -n "$VM_NAME network info: "
+		echo "info usernet" | socat - UNIX-CONNECT:${SOCKET}
+	else
+		echo "$VM_NAME is not running."
+	fi
+}
+
+system_reset() {
+	if [ -f "$PID_FILE" ]; then
+		echo "Resetting $VM_NAME..."
+		echo "system_reset" | socat - UNIX-CONNECT:${SOCKET}
+	else
+		echo "$VM_NAME is not running."
+	fi
+}
+
+case "$1" in
+    start) start_vm ;;
+    stop) stop_vm ;;
+    status) get_status ;;
+    reset) system_reset ;;
+    check-bridge) check_bridge ;;
+    netinfo) get_net_info ;;
+    *) echo "Usage: $0 {start|stop|status|reset|check-bridge|reset|netinfo}" ;;
+esac
