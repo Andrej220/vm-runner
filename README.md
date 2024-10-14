@@ -24,16 +24,16 @@ Ensure the following are installed on your system:
 
 1. **Clone the repository**:
 
-    \`\`\`bash
-    git clone <repo_url>
-    cd <repo_name>
-    \`\`\`
+    ```bash
+    git clone git@github.com:Andrej220/vm-runner.git
+    cd vm-runner
+    ```
 
 2. **Clone the YAML parsing utility**:
 
-    \`\`\`bash
+    ```bash
     git clone git@github.com:Andrej220/bash_utils.git
-    \`\`\`
+    ```
 
     The `parse_yaml.sh` file should be placed in the `utils/` directory or update the path in the script to match its location.
 
@@ -59,7 +59,7 @@ To override default values, provide a YAML configuration file. The script will l
 
 Example (`my_vm_config.yml`):
 
-\`\`\`yaml
+```yaml
 project_name: "my_vm"
 ram: "8G"
 cpus: "4"
@@ -67,7 +67,7 @@ hostport: "2222"
 vmport: "22"
 vm_dir: "./my_vm/"
 bridge_name: "br1"
-\`\`\`
+```
 
 ### Command-Line Arguments
 
@@ -83,9 +83,9 @@ You can override the default values or YAML settings using these arguments:
 
 Example:
 
-\`\`\`bash
+```bash
 ./vm_manager.sh --project-name "test_vm" --ram "8G" --cpus "4" start
-\`\`\`
+```
 
 ### Script Commands
 
@@ -98,14 +98,14 @@ Example:
 
 Example usage:
 
-\`\`\`bash
+```bash
 ./vm_manager.sh start           # Start the VM
 ./vm_manager.sh stop            # Stop the VM
 ./vm_manager.sh status          # Check VM status
 ./vm_manager.sh reset           # Reset the VM
 ./vm_manager.sh check-bridge    # Create/check the network bridge
 ./vm_manager.sh netinfo         # Get network information
-\`\`\`
+```
 
 ### Disk Management
 
