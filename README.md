@@ -25,8 +25,8 @@ Ensure the following are installed on your system:
 1. **Clone the repository**:
 
     ```bash
-    git clone <repo_url>
-    cd <repo_name>
+    git clone git@github.com:Andrej220/vm-runner.git
+    cd vm-runner
     ```
 
 2. **Clone the YAML parsing utility**:
