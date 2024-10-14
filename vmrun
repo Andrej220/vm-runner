@@ -1,16 +1,94 @@
 #!/bin/bash
+# Default values
+DEFAULT_PROJECT_NAME="k3"
+DEFAULT_RAM="4G"
+DEFAULT_CPUS="2"
+DEFAULT_HOSTPORT="8022"
+DEFAULT_VMPORT="22"
+DEFAULT_VM_DIR="./vm/"
+DEFAULT_BRIDGE_NAME="br0"
 
-PROJECT_NAME=${PROJECT_NAME:-"k3"}
-RAM=${RAM:-"4G"}
-CPUS=${CPUS:-"2"}
-HOSTPORT=${HOSTPORT:-"8022"}
-VMPORT=${VMPORT:-"22"}
-VM_DIR=${VM_DIR:-"./vm/"}
-BRIDGE_NAME=${BRIDGE_NAME:-"br0"}
-
-VM_NAME="${PROJECT_NAME}_vm"
+VM_NAME="${PROJECT_NAME:-${DEFAULT_PROJECT_NAME}}_vm"
 PID_FILE="/tmp/${VM_NAME}.pid"
 SOCKET="/tmp/${VM_NAME}_monitor.sock"
+
+# Source YAML parsing utility
+source ./utils/parse_yaml.sh
+
+# Function to load parameters from YAML file
+load_config() {
+    local config_file="$1"
+    
+    # Check if the file exists
+    if [[ -f "$config_file" ]]; then
+        echo "Loading configuration from $config_file..."
+        eval $(parse_yaml "$config_file" "config_")
+        
+        # Set the variables from YAML file
+        PROJECT_NAME=${config_project_name:-$PROJECT_NAME}
+        RAM=${config_ram:-$RAM}
+        CPUS=${config_cpus:-$CPUS}
+        HOSTPORT=${config_hostport:-$HOSTPORT}
+        VMPORT=${config_vmport:-$VMPORT}
+        VM_DIR=${config_vm_dir:-$VM_DIR}
+        BRIDGE_NAME=${config_bridge_name:-$BRIDGE_NAME}
+    else
+        echo "Config file not found: $config_file"
+    fi
+}
+
+# Step 1: Check for the config file argument first
+CONFIG_FILE=""
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        --config|-c)
+            CONFIG_FILE="$2"
+            shift 2
+            ;;
+        *)
+            break # Continue to other parameters after config file
+            ;;
+    esac
+done
+
+# If no config file was passed, look for default config based on script name
+if [[ -z "$CONFIG_FILE" ]]; then
+    SCRIPT_NAME=$(basename "$0" .sh)
+    CONFIG_FILE="${SCRIPT_NAME}_config.yml"
+fi
+
+# Load config from the file if exists
+
+if declare -F parse_yaml > /dev/null; then
+    load_config "$CONFIG_FILE"
+else
+    echo "parse_yaml function is not defined. Skip reading config."
+fi
+
+# Step 2: Parse remaining command-line arguments
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        --project-name) PROJECT_NAME="$2"; shift 2;;
+        --ram) RAM="$2"; shift 2;;
+        --cpus) CPUS="$2"; shift 2;;
+        --host-port) HOSTPORT="$2"; shift 2;;
+        --vm-port) VMPORT="$2"; shift 2;;
+        --vm-dir) VM_DIR="$2"; shift 2;;
+        --bridge-name) BRIDGE_NAME="$2"; shift 2;;
+        *) echo "Unknown parameter: $1"; exit 1;;
+    esac
+done
+
+# Fallback to defaults if variables are still not set
+PROJECT_NAME=${PROJECT_NAME:-$DEFAULT_PROJECT_NAME}
+RAM=${RAM:-$DEFAULT_RAM}
+CPUS=${CPUS:-$DEFAULT_CPUS}
+HOSTPORT=${HOSTPORT:-$DEFAULT_HOSTPORT}
+VMPORT=${VMPORT:-$DEFAULT_VMPORT}
+VM_DIR=${VM_DIR:-$DEFAULT_VM_DIR}
+BRIDGE_NAME=${BRIDGE_NAME:-$DEFAULT_BRIDGE_NAME}
+
+
 ADD_DISKS=""
 
 
