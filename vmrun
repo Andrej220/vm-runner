@@ -12,19 +12,17 @@ VM_NAME="${PROJECT_NAME:-${DEFAULT_PROJECT_NAME}}_vm"
 PID_FILE="/tmp/${VM_NAME}.pid"
 SOCKET="/tmp/${VM_NAME}_monitor.sock"
 
-# Source YAML parsing utility
 source ./utils/parse_yaml.sh
 
-# Function to load parameters from YAML file
+# load parameters from yml config
 load_config() {
     local config_file="$1"
     
-    # Check if the file exists
     if [[ -f "$config_file" ]]; then
         echo "Loading configuration from $config_file..."
         eval $(parse_yaml "$config_file" "config_")
         
-        # Set the variables from YAML file
+        # Set the variables from config
         PROJECT_NAME=${config_project_name:-$PROJECT_NAME}
         RAM=${config_ram:-$RAM}
         CPUS=${config_cpus:-$CPUS}
@@ -37,7 +35,7 @@ load_config() {
     fi
 }
 
-# Step 1: Check for the config file argument first
+# Step 1: Check for the config file argument 
 CONFIG_FILE=""
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
@@ -46,19 +44,18 @@ while [[ "$#" -gt 0 ]]; do
             shift 2
             ;;
         *)
-            break # Continue to other parameters after config file
+            break # Continue to other parameters 
             ;;
     esac
 done
 
-# If no config file was passed, look for default config based on script name
+# If no config file was passed, look for default config 
 if [[ -z "$CONFIG_FILE" ]]; then
     SCRIPT_NAME=$(basename "$0" .sh)
     CONFIG_FILE="${SCRIPT_NAME}_config.yml"
 fi
 
-# Load config from the file if exists
-
+# Load config 
 if declare -F parse_yaml > /dev/null; then
     load_config "$CONFIG_FILE"
 else
@@ -79,7 +76,7 @@ while [[ "$#" -gt 1 ]]; do
     esac
 done
 
-# Fallback to defaults if variables are still not set
+# Fallback to defaults if variables are not set
 PROJECT_NAME=${PROJECT_NAME:-$DEFAULT_PROJECT_NAME}
 RAM=${RAM:-$DEFAULT_RAM}
 CPUS=${CPUS:-$DEFAULT_CPUS}
@@ -88,9 +85,8 @@ VMPORT=${VMPORT:-$DEFAULT_VMPORT}
 VM_DIR=${VM_DIR:-$DEFAULT_VM_DIR}
 BRIDGE_NAME=${BRIDGE_NAME:-$DEFAULT_BRIDGE_NAME}
 
-
+# String var for additional disks to add if they are present
 ADD_DISKS=""
-
 
 generate_additional_disks() {
     local snapshot_file="${VM_DIR}${PROJECT_NAME}_snapshot.qcow2"
@@ -127,8 +123,7 @@ QEMU_CMD="qemu-system-x86_64 \
 
 start_vm() {
     echo "$QEMU_CMD"
-    
-    check_bridge  
+    #check_bridge  
     if [ -f "$PID_FILE" ]; then
         echo "VM is already running with PID $(cat "$PID_FILE")."
     else
