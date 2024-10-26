@@ -16,6 +16,8 @@ SOCKET="/tmp/${VM_NAME}_monitor.sock"
 
 source ./utils/parse_yaml.sh
 
+#trap "$0 stop" SIGTERM
+
 # load parameters from yml config
 load_config() {
     local config_file="$1"
@@ -128,7 +130,7 @@ QEMU_CMD="qemu-system-x86_64 \
   -hda ${VM_DIR}${PROJECT_NAME}_snapshot.qcow2 \
   $ADD_DISKS
   -device e1000,netdev=net0 \
-  -netdev user,id=net0,hostfwd=tcp::${HOSTPORT}-:${VMPORT}\
+  -netdev user,id=net0,hostfwd=tcp::${HOSTPORT}-:${VMPORT},hostfwd=tcp::9090-:9090\
   -device e1000,netdev=net1 \
   -netdev tap,id=net1,ifname=$TAP,script=no,downscript=no  \
   -cdrom ./cloud-init/cloud-init.iso"
@@ -147,7 +149,7 @@ start_vm() {
             rm -f "$PID_FILE" "$SOCKET" 
         fi
     fi
-    check_bridge  
+    #check_bridge  
     echo "Starting VM..."
     $QEMU_CMD > /dev/null 2>&1 &
     QEMU_PID=$!
@@ -161,7 +163,6 @@ start_vm() {
     fi
     echo $! > "$PID_FILE"
     echo "VM started with PID $(cat "$PID_FILE")."
-
 }
 
 stop_vm() {
