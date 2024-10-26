@@ -119,6 +119,8 @@ generate_additional_disks() {
 }
 generate_additional_disks
 
+#  -device e1000,netdev=net1 \
+#  -netdev tap,id=net1,ifname=$TAP,script=no,downscript=no  \
 
 QEMU_CMD="qemu-system-x86_64 \
   -monitor unix:${SOCKET},server,nowait \
@@ -131,8 +133,6 @@ QEMU_CMD="qemu-system-x86_64 \
   $ADD_DISKS
   -device e1000,netdev=net0 \
   -netdev user,id=net0,hostfwd=tcp::${HOSTPORT}-:${VMPORT},hostfwd=tcp::9090-:9090\
-  -device e1000,netdev=net1 \
-  -netdev tap,id=net1,ifname=$TAP,script=no,downscript=no  \
   -cdrom ./cloud-init/cloud-init.iso"
 
 start_vm() {
