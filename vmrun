@@ -16,15 +16,13 @@ SOCKET="/tmp/${VM_NAME}_monitor.sock"
 
 source ./utils/parse_yaml.sh
 
-#trap "$0 stop" SIGTERM
-
 # load parameters from yml config
 load_config() {
     local config_file="$1"
     
     if [[ -f "$config_file" ]]; then
         echo "Loading configuration from $config_file..."
-        eval $(parse_yaml "$config_file" "config_")
+        eval $(parse_yaml_array "$config_file" "config_")
         
         # Set the variables from config
         PROJECT_NAME=${config_project_name:-$PROJECT_NAME}
@@ -151,6 +149,7 @@ start_vm() {
     fi
     #check_bridge  
     echo "Starting VM..."
+    echo "$QEMU_CMD"
     $QEMU_CMD > /dev/null 2>&1 &
     QEMU_PID=$!
     echo "Waiting VM to start..."
@@ -220,10 +219,15 @@ check_bridge() {
 get_status() {
 	if [ -f "$PID_FILE" ]; then
 		echo -n "$VM_NAME status: "
-		echo "info status" | socat - UNIX-CONNECT:${SOCKET} | awk -F: '/VM status/ {gsub(/ /, "", $2); print $2}'
-		echo "PID: $(cat "$PID_FILE")"
+        if [ -f "${SOCKET}" ]; then \
+		    echo "info status" | socat - UNIX-CONNECT:${SOCKET} | awk -F: '/VM status/ {gsub(/ /, "", $2); print $2}' ; \
+		    echo "PID: $(cat "$PID_FILE")"; \
+        else \
+             echo "not found" ; \
+             echo "Stale "$PID_FILE" found.";\
+        fi
 	else
-		echo "$VM_NAME is not running."
+		echo "$VM_NAME not found."
 	fi
 }
 
