@@ -1,3 +1,0 @@
-[submodule "utils"]
-	path = utils
-	url = https://github.com/Andrej220/bash_utils/blob/main/parse_yaml.sh
