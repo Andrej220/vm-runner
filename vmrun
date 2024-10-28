@@ -3,10 +3,13 @@
 DEFAULT_PROJECT_NAME="k3"
 DEFAULT_RAM="4G"
 DEFAULT_CPUS="2"
-DEFAULT_HOSTPORT="8022"
-DEFAULT_VMPORT="22"
+DEFAULT_PORTS=("8022:22" "9090:9090")
 DEFAULT_VM_DIR="./vm/"
 DEFAULT_BRIDGE_NAME="br0"
+DEFAULT_INTERFACE="eth1"
+DEFAULT_TAP="tap0"
+YQ=./yq
+
 
 VM_NAME="${PROJECT_NAME:-${DEFAULT_PROJECT_NAME}}_vm"
 PID_FILE="/tmp/${VM_NAME}.pid"
@@ -15,24 +18,39 @@ SOCKET="/tmp/${VM_NAME}_monitor.sock"
 source ./utils/parse_yaml.sh
 
 # load parameters from yml config
+# Load configuration using $YQ
 load_config() {
     local config_file="$1"
-    
+ 
     if [[ -f "$config_file" ]]; then
         echo "Loading configuration from $config_file..."
-        eval $(parse_yaml "$config_file" "config_")
         
-        # Set the variables from config
-        PROJECT_NAME=${config_project_name:-$PROJECT_NAME}
-        RAM=${config_ram:-$RAM}
-        CPUS=${config_cpus:-$CPUS}
-        HOSTPORT=${config_hostport:-$HOSTPORT}
-        VMPORT=${config_vmport:-$VMPORT}
-        VM_DIR=${config_vm_dir:-$VM_DIR}
-        BRIDGE_NAME=${config_bridge_name:-$BRIDGE_NAME}
+        PROJECT_NAME=$($YQ e '.project_name' "$config_file")
+        RAM=$($YQ e '.ram' "$config_file")
+        CPUS=$($YQ e '.cpus' "$config_file")
+        VM_DIR=$($YQ e '.vm_dir' "$config_file")
+        BRIDGE_NAME=$($YQ e '.bridge_name' "$config_file")
+        INTERFACE=$($YQ e '.interface' "$config_file")
+        TAP=$($YQ e '.tapinterface' "$config_file")
+        # Reading hostports array
+        HOSTPORTS=$($YQ '.hostports[] | .host + ":" + .vm' "$config_file")
     else
         echo "Config file not found: $config_file"
+        HOSTPORTS=$(printf "%s\n" "${DEFAULT_PORTS[@]}")
     fi
+}
+
+# Function to generate port forwarding arguments
+generate_port_mappings() {
+    local mappings=""
+    while IFS= read -r line; do
+        # Split the line into host and vm parts
+        host_port=$(echo "$line" | cut -d':' -f1)
+        vm_port=$(echo "$line" | cut -d':' -f2)
+        mappings+="hostfwd=tcp::${host_port}-:${vm_port},"
+    done <<< "$HOSTPORTS"
+    # Remove the trailing comma
+    HOSTFWD_ARGS="${mappings%,}"
 }
 
 # Step 1: Check for the config file argument 
@@ -68,10 +86,12 @@ while [[ "$#" -gt 1 ]]; do
         --project-name) PROJECT_NAME="$2"; shift 2;;
         --ram) RAM="$2"; shift 2;;
         --cpus) CPUS="$2"; shift 2;;
-        --host-port) HOSTPORT="$2"; shift 2;;
-        --vm-port) VMPORT="$2"; shift 2;;
+        #--host-port) HOSTPORT="$2"; shift 2;;
+        #--vm-port) VMPORT="$2"; shift 2;;
         --vm-dir) VM_DIR="$2"; shift 2;;
         --bridge-name) BRIDGE_NAME="$2"; shift 2;;
+        --interface) INTERFACE="$2"; shift 2;;
+        --tap) TAP="$2"; shift 2;;
         #*) echo "Unknown parameter: $1"; exit 1;;
     esac
 done
@@ -80,10 +100,12 @@ done
 PROJECT_NAME=${PROJECT_NAME:-$DEFAULT_PROJECT_NAME}
 RAM=${RAM:-$DEFAULT_RAM}
 CPUS=${CPUS:-$DEFAULT_CPUS}
-HOSTPORT=${HOSTPORT:-$DEFAULT_HOSTPORT}
-VMPORT=${VMPORT:-$DEFAULT_VMPORT}
+HOSTPORT=${HOSTPORT:-$DEFAULT_PORTS}
 VM_DIR=${VM_DIR:-$DEFAULT_VM_DIR}
 BRIDGE_NAME=${BRIDGE_NAME:-$DEFAULT_BRIDGE_NAME}
+INTERFACE=${INTERFACE:-$DEFAULT_INTERFACE}
+TAP=${TAP:-$DEFAULT_TAP}
+
 
 # String var for additional disks to add if they are present
 ADD_DISKS=""
@@ -107,6 +129,10 @@ generate_additional_disks() {
     fi
 }
 generate_additional_disks
+generate_port_mappings "$HOSTPORTS"
+
+#  -device e1000,netdev=net1 \
+#  -netdev tap,id=net1,ifname=$TAP,script=no,downscript=no  \
 
 QEMU_CMD="qemu-system-x86_64 \
   -monitor unix:${SOCKET},server,nowait \
@@ -118,47 +144,64 @@ QEMU_CMD="qemu-system-x86_64 \
   -hda ${VM_DIR}${PROJECT_NAME}_snapshot.qcow2 \
   $ADD_DISKS
   -device e1000,netdev=net0 \
-  -netdev user,id=net0,hostfwd=tcp::${HOSTPORT}-:${VMPORT}\
+  -netdev user,id=net0,${HOSTFWD_ARGS} \
   -cdrom ./cloud-init/cloud-init.iso"
 
 start_vm() {
-    echo "$QEMU_CMD"
-    #check_bridge  
+    # Check if the PID file exists
     if [ -f "$PID_FILE" ]; then
-        echo "VM is already running with PID $(cat "$PID_FILE")."
-    else
-        echo "Starting VM..."
-        $QEMU_CMD > /dev/null 2>&1 &
-        QEMU_PID=$!
-        echo "Waiting VM to start..."
-        sleep 2
-        #wait $QEMU_PID
-        if [ ! -S "$SOCKET" ]; then
-            echo ""
-            echo "Could not start VM"
-            echo "$QEMU_CMD"
-            exit 1
+        VM_PID=$(cat "$PID_FILE")
+        # Check if the process is actually running
+        if ps -p "$VM_PID" > /dev/null 2>&1; then
+            echo "VM is already running with PID $VM_PID."
+            return 0 
+        else
+            echo "Stale PID file found. VM is not running, but PID file exists."
+            echo "Cleaning up stale PID file and socket."
+            rm -f "$PID_FILE" "$SOCKET" 
         fi
-        echo $! > "$PID_FILE"
-        echo "VM started with PID $(cat "$PID_FILE")."
     fi
+    #check_bridge  # commented as bridge is not needed
+    echo "Starting VM..."
+    $QEMU_CMD > /dev/null 2>&1 &
+    QEMU_PID=$!
+    echo "Waiting VM to start..."
+    sleep 2
+    #wait $QEMU_PID
+    if [ ! -S "$SOCKET" ]; then
+        echo "Failed start VM"
+        echo "$QEMU_CMD"
+        exit 1
+    fi
+    echo $! > "$PID_FILE"
+    echo "VM started with PID $(cat "$PID_FILE")."
 }
 
 stop_vm() {
     if [ -f "$PID_FILE" ]; then
-        echo "Stopping VM..."
+        VM_PID=$(cat "$PID_FILE")
+        echo "Stopping VM (PID: $VM_PID)..."
         echo "system_powerdown" | socat - UNIX-CONNECT:${SOCKET}
+        echo -n "Waiting for VM to shut down..."
+        while kill -0 "$VM_PID" > /dev/null 2>&1; do
+            echo -n "."
+            sleep 1
+        done
+        echo""
+        echo "VM has shutdown."
         rm -f "$PID_FILE" "$SOCKET"
-        echo "VM stopped."
+        echo "PID file and socket removed"
     else
         echo "VM is not running."
     fi
 }
 
 check_bridge() {
+    # Check if bridge already exists
     if ip link show "$BRIDGE_NAME" &> /dev/null; then
         echo "Bridge $BRIDGE_NAME exists."
     else
+        # Create the bridge if it doesn't exist
         echo "Creating bridge $BRIDGE_NAME..."
         ip link add name "$BRIDGE_NAME" type bridge
         if [ $? -ne 0 ]; then 
@@ -168,15 +211,36 @@ check_bridge() {
         ip link set dev "$BRIDGE_NAME" up
         echo "Bridge $BRIDGE_NAME created."
     fi
+    
+    # Check if physical interface is part of the bridge
+    if ! ip link show master "$BRIDGE_NAME" | grep -q "$INTERFACE"; then
+        echo "Adding interface $INTERFACE to bridge $BRIDGE_NAME..."
+        ip link set "$INTERFACE" master "$BRIDGE_NAME"
+        if [ $? -ne 0 ]; then 
+            echo "Failed to add $INTERFACE to bridge $BRIDGE_NAME."
+            exit 1
+        fi
+    else
+        echo "Interface $INTERFACE is already part of the bridge $BRIDGE_NAME."
+    fi
+    ip tuntap add dev $TAP mode tap
+    ip link set $TAP master "$BRIDGE_NAME" 
+    ip link set up dev $TAP
+    dhclient "$BRIDGE_NAME"
 }
 
 get_status() {
 	if [ -f "$PID_FILE" ]; then
 		echo -n "$VM_NAME status: "
-		echo "info status" | socat - UNIX-CONNECT:${SOCKET} | awk -F: '/VM status/ {gsub(/ /, "", $2); print $2}'
-		echo "PID: $(cat "$PID_FILE")"
+        if [ -f "${SOCKET}" ]; then \
+		    echo "info status" | socat - UNIX-CONNECT:${SOCKET} | awk -F: '/VM status/ {gsub(/ /, "", $2); print $2}' ; \
+		    echo "PID: $(cat "$PID_FILE")"; \
+        else \
+             echo "not found" ; \
+             echo "Stale "$PID_FILE" found.";\
+        fi
 	else
-		echo "$VM_NAME is not running."
+		echo "$VM_NAME not found."
 	fi
 }
 
