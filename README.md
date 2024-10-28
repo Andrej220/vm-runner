@@ -29,7 +29,7 @@ Configuration options are available via a YAML file (default `<script_name>_conf
 
 ### Key Configuration Options in `config.yml`
 
-- **project_name**: The name of the project, used for naming the VM and the PID file. It refers to another project, e.g., k3s-cluster-lab, and determines the names of hard disk images. The script will look for primary disk images as `${VM_DIR}${PROJECT_NAME}_snapshot.qcow2`; any other `.qcow2` images in this directory will be added as additional disks.
+- **project_name**: The name of the project, used for naming the VM and the PID file. It refers to another project, e.g., k3s-cluster-lab https://github.com/Andrej220/k3s-cluster-lab.git, and determines the names of hard disk images. The script will look for primary disk images as `${VM_DIR}${PROJECT_NAME}_snapshot.qcow2`; any other `.qcow2` images in this directory will be added as additional disks.
 - **ram**: RAM allocated to the VM (e.g., `4G`).
 - **cpus**: Number of CPUs assigned to the VM.
 - **vm_dir**: Directory where VM images are stored.
