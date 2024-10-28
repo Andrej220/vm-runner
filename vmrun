@@ -15,7 +15,7 @@ VM_NAME="${PROJECT_NAME:-${DEFAULT_PROJECT_NAME}}_vm"
 PID_FILE="/tmp/${VM_NAME}.pid"
 SOCKET="/tmp/${VM_NAME}_monitor.sock"
 
-source ./utils/parse_yaml.sh
+#source ./utils/parse_yaml.sh
 
 # load parameters from yml config
 # Load configuration using $YQ
@@ -86,8 +86,6 @@ while [[ "$#" -gt 1 ]]; do
         --project-name) PROJECT_NAME="$2"; shift 2;;
         --ram) RAM="$2"; shift 2;;
         --cpus) CPUS="$2"; shift 2;;
-        #--host-port) HOSTPORT="$2"; shift 2;;
-        #--vm-port) VMPORT="$2"; shift 2;;
         --vm-dir) VM_DIR="$2"; shift 2;;
         --bridge-name) BRIDGE_NAME="$2"; shift 2;;
         --interface) INTERFACE="$2"; shift 2;;
