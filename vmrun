@@ -15,10 +15,6 @@ VM_NAME="${PROJECT_NAME:-${DEFAULT_PROJECT_NAME}}_vm"
 PID_FILE="/tmp/${VM_NAME}.pid"
 SOCKET="/tmp/${VM_NAME}_monitor.sock"
 
-#source ./utils/parse_yaml.sh
-
-# load parameters from yml config
-# Load configuration using $YQ
 load_config() {
     local config_file="$1"
  
@@ -74,7 +70,7 @@ if [[ -z "$CONFIG_FILE" ]]; then
 fi
 
 # Load config 
-if declare -F parse_yaml > /dev/null; then
+if  [ -f yq ] ; then
     load_config "$CONFIG_FILE"
 else
     echo "parse_yaml function is not defined. Skip reading config."
