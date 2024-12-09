@@ -1,0 +1,13 @@
+project_name: k3s
+ram: "10G"
+cpus: "6"
+services:
+  - name: ssh
+    host: 8022   # ssh
+    vm: 22
+vm_dir: ./vm/
+bridge_name: "br0"
+disksize: "200G"
+interface: "eth1"
+tapinterface: "tap0"
+
