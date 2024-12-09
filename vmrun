@@ -29,23 +29,20 @@ load_config() {
         INTERFACE=$($YQ e '.interface' "$config_file")
         TAP=$($YQ e '.tapinterface' "$config_file")
         # Reading hostports array
-        HOSTPORTS=$($YQ '.hostports[] | .host + ":" + .vm' "$config_file")
+        HOSTPORTS=($($YQ e '.services[] | .host + ":" + .vm' "$config_file"))
     else
         echo "Config file not found: $config_file"
         HOSTPORTS=$(printf "%s\n" "${DEFAULT_PORTS[@]}")
     fi
 }
 
-# Function to generate port forwarding arguments
-generate_port_mappings() {
+generate_port_mappings(){
     local mappings=""
-    while IFS= read -r line; do
-        # Split the line into host and vm parts
-        host_port=$(echo "$line" | cut -d':' -f1)
-        vm_port=$(echo "$line" | cut -d':' -f2)
-        mappings+="hostfwd=tcp::${host_port}-:${vm_port},"
-    done <<< "$HOSTPORTS"
-    # Remove the trailing comma
+    for port_pair in "${HOSTPORTS[@]}"; do
+        host=${port_pair%%:*}
+        vm=${port_pair##*:}
+        mappings+="hostfwd=tcp::$host-:$vm,"
+    done
     HOSTFWD_ARGS="${mappings%,}"
 }
 
