@@ -1,0 +1,17 @@
+project_name: k3s
+
+resources:
+  ram: "10G"
+  cpus: "6"
+  disksize: "200G"
+
+vm:
+  directory: ./vm/
+  bridge_name: "br0"
+  interface: "eth1"
+  tap_interface: "tap0"
+
+services:
+  - name: ssh
+    host_port: 8022
+    vm_port: 22

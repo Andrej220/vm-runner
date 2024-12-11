@@ -22,14 +22,14 @@ load_config() {
         echo "Loading configuration from $config_file..."
         
         PROJECT_NAME=$($YQ e '.project_name' "$config_file")
-        RAM=$($YQ e '.ram' "$config_file")
-        CPUS=$($YQ e '.cpus' "$config_file")
-        VM_DIR=$($YQ e '.vm_dir' "$config_file")
-        BRIDGE_NAME=$($YQ e '.bridge_name' "$config_file")
-        INTERFACE=$($YQ e '.interface' "$config_file")
-        TAP=$($YQ e '.tapinterface' "$config_file")
+        RAM=$($YQ e '.resources.ram' "$config_file")
+        CPUS=$($YQ e '.resources.cpus' "$config_file")
+        VM_DIR=$($YQ e '.vm.directory' "$config_file")
+        BRIDGE_NAME=$($YQ e '.vm.bridge_name' "$config_file")
+        INTERFACE=$($YQ e '.vm.interface' "$config_file")
+        TAP=$($YQ e '.vm.tap_interface' "$config_file")
         # Reading hostports array
-        HOSTPORTS=($($YQ e '.services[] | .host + ":" + .vm' "$config_file"))
+        HOSTPORTS=($($YQ e -r -o=json '.services[] | .host_port + ":" + .vm_port ' "$config_file"))
     else
         echo "Config file not found: $config_file"
         HOSTPORTS=$(printf "%s\n" "${DEFAULT_PORTS[@]}")
