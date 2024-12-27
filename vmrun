@@ -8,6 +8,7 @@ DEFAULT_VM_DIR="./vm/"
 DEFAULT_BRIDGE_NAME="br0"
 DEFAULT_INTERFACE="eth1"
 DEFAULT_TAP="tap0"
+DEBUG="TRUE"
 YQ=./yq
 
 
@@ -48,6 +49,7 @@ generate_port_mappings(){
 
 # Step 1: Check for the config file argument 
 CONFIG_FILE=""
+echo "$@"
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
         --config|-c)
@@ -55,7 +57,7 @@ while [[ "$#" -gt 0 ]]; do
             shift 2
             ;;
         *)
-            break # Continue to other parameters 
+            break 
             ;;
     esac
 done
@@ -76,6 +78,7 @@ fi
 # Step 2: Parse remaining command-line arguments
 while [[ "$#" -gt 1 ]]; do
     case "$1" in
+        --debug) echo "debug is on." && DEBUG="TRUE";shift 1;;
         --project-name) PROJECT_NAME="$2"; shift 2;;
         --ram) RAM="$2"; shift 2;;
         --cpus) CPUS="$2"; shift 2;;
@@ -83,7 +86,7 @@ while [[ "$#" -gt 1 ]]; do
         --bridge-name) BRIDGE_NAME="$2"; shift 2;;
         --interface) INTERFACE="$2"; shift 2;;
         --tap) TAP="$2"; shift 2;;
-        #*) echo "Unknown parameter: $1"; exit 1;;
+        *) echo "Unknown parameter: $1"; exit 1;;
     esac
 done
 
@@ -154,6 +157,9 @@ start_vm() {
     fi
     #check_bridge  # commented as bridge is not needed
     echo "Starting VM..."
+    if [ "$DEBUG" = "TRUE" ]; then
+        echo $QEMU_CMD
+    fi
     $QEMU_CMD > /dev/null 2>&1 &
     QEMU_PID=$!
     echo "Waiting VM to start..."
